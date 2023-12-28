@@ -453,7 +453,7 @@ class GTWR(BaseModel):
         use for calculating AICc, BIC, CV and so on.
         """
         if self.thread > 1:
-            result = list(zip(*Parallel(n_jobs=self.thread)(delayed(self._search_local_fit)(i) for i in range(self.n))))
+            result = list(zip(*Parallel(n_jobs=self.thread,verbose=10)(delayed(self._search_local_fit)(i) for i in range(self.n))))
         else:
             result = list(zip(*map(self._search_local_fit, range(self.n))))
         err2 = np.array(result[0]).reshape(-1, 1)
