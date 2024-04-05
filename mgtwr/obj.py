@@ -229,25 +229,27 @@ class MGWRResults(BaseModel):
         self.bws_history = bws_history
         self.predict_value = predict_value
         self.betas = betas
-        self.ENP_j = ENP_j
+        self.ENP_j = ENP_j 
+        if ENP_j is None:
+                print("跳过了ENP_j的计算")
         self.reside = self.y - self.predict_value
-        self.tr_S = np.sum(self.ENP_j)
-        self.ENP = self.tr_S
+        self.tr_S = np.sum(self.ENP_j) if ENP_j is not None else print("跳过了tr_S的计算,因为ENP_j跳过") and None
+        self.ENP = self.tr_S if ENP_j is not None else print("跳过了ENP的计算,因为tr_S,ENP_j跳过") and None
         self.TSS = np.sum((self.y - np.mean(self.y)) ** 2)
         self.RSS = np.sum(self.reside ** 2)
-        self.sigma2 = self.RSS / (self.n - self.tr_S)
-        self.CCT = CCT * self.sigma2
-        self.bse = np.sqrt(self.CCT)
-        self.t_values = self.betas / self.bse
-        self.df_model = self.n - self.tr_S
+        self.sigma2 = self.RSS / (self.n - self.tr_S) if ENP_j is not None else print("跳过了sigma2的计算,因为tr_S,ENP_j跳过") and None
+        self.CCT = CCT * self.sigma2 if CCT is not None else print("跳过了CCT的计算") and None
+        self.bse = np.sqrt(self.CCT) if CCT is not None else print("跳过了bse的计算,因为CCT跳过") and None
+        self.t_values = self.betas / self.bse if CCT is not None else print("跳过了t_values的计算,因为bse,CCT跳过") and None
+        self.df_model = self.n - self.tr_S if ENP_j is not None else print("跳过了df_model的计算,因为tr_S跳过") and None
         self.R2 = 1 - self.RSS / self.TSS
-        self.adj_R2 = 1 - (1 - self.R2) * (self.n - 1) / (self.n - self.ENP - 1)
+        self.adj_R2 = 1 - (1 - self.R2) * (self.n - 1) / (self.n - self.ENP - 1) if ENP_j is not None else print("跳过了adj_R2的计算,因为ENP_j跳过") and None
         self.llf = -np.log(self.RSS) * self.n / \
-                   2 - (1 + np.log(np.pi / self.n * 2)) * self.n / 2
-        self.aic = -2.0 * self.llf + 2.0 * (self.tr_S + 1)
+                   2 - (1 + np.log(np.pi / self.n * 2)) * self.n / 2 if ENP_j is not None else print("跳过了llf的计算,因为ENP_j跳过") and None
+        self.aic = -2.0 * self.llf + 2.0 * (self.tr_S + 1) if ENP_j is not None else print("跳过了aic的计算,因为ENP_j跳过") and None
         self.aic_c = self.aic + 2.0 * self.tr_S * (self.tr_S + 1.0) / \
-                     (self.n - self.tr_S - 1.0)
-        self.bic = -2.0 * self.llf + (self.k + 1) * np.log(self.n)
+                     (self.n - self.tr_S - 1.0) if ENP_j is not None else print("跳过了aic_c的计算,因为ENP_j跳过") and None
+        self.bic = -2.0 * self.llf + (self.k + 1) * np.log(self.n) if ENP_j is not None else print("跳过了bic的计算,因为ENP_j跳过") and None
 
 
 class MGTWRResults(MGWRResults):

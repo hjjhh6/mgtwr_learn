@@ -4,7 +4,15 @@ import pandas as pd
 import multiprocessing as mp
 from .kernel import GWRKernel, GTWRKernel
 from .function import _compute_betas_gwr, surface_to_plane
-from .obj import CalAicObj, CalMultiObj, BaseModel, GWRResults, GTWRResults, MGWRResults, MGTWRResults
+from .obj import (
+    CalAicObj,
+    CalMultiObj,
+    BaseModel,
+    GWRResults,
+    GTWRResults,
+    MGWRResults,
+    MGTWRResults,
+)
 from joblib import Parallel, delayed
 
 
@@ -12,17 +20,18 @@ class GWR(BaseModel):
     """
     Geographically Weighted Regression
     """
+
     def __init__(
-            self,
-            coords: Union[np.ndarray, pd.DataFrame],
-            X: Union[np.ndarray, pd.DataFrame],
-            y: Union[np.ndarray, pd.DataFrame, pd.Series],
-            bw: float,
-            kernel: str = 'bisquare',
-            fixed: bool = True,
-            constant: bool = True,
-            thread: int = 1,
-            convert: bool = False,
+        self,
+        coords: Union[np.ndarray, pd.DataFrame],
+        X: Union[np.ndarray, pd.DataFrame],
+        y: Union[np.ndarray, pd.DataFrame, pd.Series],
+        bw: float,
+        kernel: str = "bisquare",
+        fixed: bool = True,
+        constant: bool = True,
+        thread: int = 1,
+        convert: bool = False,
     ):
         """
         Parameters
@@ -50,8 +59,8 @@ class GWR(BaseModel):
                         'exponential'
 
         fixed         : bool
-                        True for distance based kernel function and  False for
-                        adaptive (nearest neighbor) kernel function (default)
+                        True for distance based kernel function (default) and
+                        False for adaptive (nearest neighbor) kernel function
 
         constant      : bool
                         True to include intercept (default) in model and False to exclude
@@ -86,7 +95,7 @@ class GWR(BaseModel):
         """
         super(GWR, self).__init__(X, y, kernel, fixed, constant)
         if thread < 1 or not isinstance(thread, int):
-            raise ValueError('thread should be an integer greater than or equal to 1')
+            raise ValueError("thread should be an integer greater than or equal to 1")
         if isinstance(coords, pd.DataFrame):
             coords = coords.values
         self.coords = coords
@@ -103,7 +112,9 @@ class GWR(BaseModel):
         calculate Weight matrix
         """
         try:
-            gwr_kernel = GWRKernel(self.coords, bw, fixed=self.fixed, function=self.kernel)
+            gwr_kernel = GWRKernel(
+                self.coords, bw, fixed=self.fixed, function=self.kernel
+            )
             distance = gwr_kernel.cal_distance(i)
             wi = gwr_kernel.cal_kernel(distance)
         except BaseException:
@@ -116,7 +127,15 @@ class GWR(BaseModel):
         use for calculating AICc, BIC, CV and so on.
         """
         if self.thread > 1:
-            result = list(zip(*Parallel(n_jobs=self.thread)(delayed(self._search_local_fit)(i) for i in range(self.n))))
+            result = list(
+                zip(
+                    *Parallel(
+                        n_jobs=self.thread,
+                        pre_dispatch="all",
+                        batch_size=self.n // self.thread,
+                    )(delayed(self._search_local_fit)(i) for i in range(self.n))
+                )
+            )
         else:
             result = list(zip(*map(self._search_local_fit, range(self.n))))
         err2 = np.array(result[0]).reshape(-1, 1)
@@ -144,7 +163,7 @@ class GWR(BaseModel):
         influx = np.dot(self.X[i], inv_xtx_xt[:, i])
         Si = np.dot(self.X[i], inv_xtx_xt).reshape(-1)
         CCT = np.diag(np.dot(inv_xtx_xt, inv_xtx_xt.T)).reshape(-1)
-        Si2 = np.sum(Si ** 2)
+        Si2 = np.sum(Si**2)
         return influx, reside, predict, betas.reshape(-1), CCT, Si2
 
     def _multi_fit(self, i):
@@ -159,7 +178,15 @@ class GWR(BaseModel):
         calculate betas, predict value and reside, use for searching best bandwidth in MGWR model by backfitting.
         """
         if self.thread > 1:
-            result = list(zip(*Parallel(n_jobs=self.thread)(delayed(self._multi_fit)(i) for i in range(self.n))))
+            result = list(
+                zip(
+                    *Parallel(
+                        n_jobs=self.thread,
+                        pre_dispatch="all",
+                        batch_size=self.n // self.thread,
+                    )(delayed(self._multi_fit)(i) for i in range(self.n))
+                )
+            )
         else:
             result = list(zip(*map(self._multi_fit, range(self.n))))
         betas = np.array(result[0])
@@ -172,7 +199,15 @@ class GWR(BaseModel):
         To fit GWR model
         """
         if self.thread > 1:
-            result = list(zip(*Parallel(n_jobs=self.thread)(delayed(self._local_fit)(i) for i in range(self.n))))
+            result = list(
+                zip(
+                    *Parallel(
+                        n_jobs=self.thread,
+                        pre_dispatch="all",
+                        batch_size=self.n // self.thread,
+                    )(delayed(self._local_fit)(i) for i in range(self.n))
+                )
+            )
         else:
             result = list(zip(*map(self._local_fit, range(self.n))))
         influ = np.array(result[0]).reshape(-1, 1)
@@ -181,25 +216,38 @@ class GWR(BaseModel):
         betas = np.array(result[3])
         CCT = np.array(result[4])
         tr_STS = np.array(result[5])
-        return GWRResults(self.coords, self.X, self.y, self.bw, self.kernel, self.fixed,
-                          influ, reside, predict_value, betas, CCT, tr_STS)
+        return GWRResults(
+            self.coords,
+            self.X,
+            self.y,
+            self.bw,
+            self.kernel,
+            self.fixed,
+            influ,
+            reside,
+            predict_value,
+            betas,
+            CCT,
+            tr_STS,
+        )
 
 
 class MGWR(GWR):
     """
     Multiscale Geographically Weighted Regression
     """
+
     def __init__(
-            self,
-            coords: np.ndarray,
-            X: np.ndarray,
-            y: np.ndarray,
-            selector,
-            kernel: str = 'bisquare',
-            fixed: bool = False,
-            constant: bool = True,
-            thread: int = 1,
-            convert: bool = False
+        self,
+        coords: np.ndarray,
+        X: np.ndarray,
+        y: np.ndarray,
+        selector,
+        kernel: str = "bisquare",
+        fixed: bool = False,
+        constant: bool = True,
+        thread: int = 1,
+        convert: bool = False,
     ):
         """
         Parameters
@@ -228,8 +276,8 @@ class MGWR(GWR):
                         'exponential'
 
         fixed         : bool
-                        True for distance based kernel function and  False for
-                        adaptive (nearest neighbor) kernel function (default)
+                        True for distance based kernel function (default) and  False for
+                        adaptive (nearest neighbor) kernel function
 
         constant      : bool
                         True to include intercept (default) in model and False to exclude
@@ -271,7 +319,16 @@ class MGWR(GWR):
         self.betas = selector.bws[3]
         bw_init = self.selector.bws[5]  # initialization bandwidth
         super().__init__(
-            coords, X, y, bw_init, kernel=kernel, fixed=fixed, constant=constant, thread=thread, convert=convert)
+            coords,
+            X,
+            y,
+            bw_init,
+            kernel=kernel,
+            fixed=fixed,
+            constant=constant,
+            thread=thread,
+            convert=convert,
+        )
         self.n_chunks = None
         self.ENP_j = None
 
@@ -283,11 +340,10 @@ class MGWR(GWR):
         ENP_j = np.zeros(self.k)
         CCT = np.zeros((self.n, self.k))
 
-        chunk_index = np.arange(n)[chunk_id * chunk_size:(chunk_id + 1) * chunk_size]
+        chunk_index = np.arange(n)[chunk_id * chunk_size : (chunk_id + 1) * chunk_size]
         init_pR = np.zeros((n, len(chunk_index)))
         init_pR[chunk_index, :] = np.eye(len(chunk_index))
-        pR = np.zeros((n, len(chunk_index),
-                       k))  # partial R: n by chunk_size by k
+        pR = np.zeros((n, len(chunk_index), k))  # partial R: n by chunk_size by k
 
         for i in range(n):
             wi = self._build_wi(i, self.bw).reshape(-1, 1)
@@ -304,8 +360,9 @@ class MGWR(GWR):
                 n_chunks_Aj = n_chunks
                 chunk_size_Aj = int(np.ceil(float(n / n_chunks_Aj)))
                 for chunk_Aj in range(n_chunks_Aj):
-                    chunk_index_Aj = np.arange(n)[chunk_Aj * chunk_size_Aj:(
-                                                                                   chunk_Aj + 1) * chunk_size_Aj]
+                    chunk_index_Aj = np.arange(n)[
+                        chunk_Aj * chunk_size_Aj : (chunk_Aj + 1) * chunk_size_Aj
+                    ]
                     pAj = np.empty((len(chunk_index_Aj), n))
                     for i in range(len(chunk_index_Aj)):
                         index = chunk_index_Aj[i]
@@ -316,26 +373,67 @@ class MGWR(GWR):
                 err = pRj_old - pR[:, :, j]
 
         for j in range(k):
-            CCT[:, j] += ((pR[:, :, j] / self.X[:, j].reshape(-1, 1)) ** 2).sum(
-                axis=1)
+            CCT[:, j] += ((pR[:, :, j] / self.X[:, j].reshape(-1, 1)) ** 2).sum(axis=1)
         for i in range(len(chunk_index)):
             ENP_j += pR[chunk_index[i], i, :]
 
-        return ENP_j, CCT,
+        return (
+            ENP_j,
+            CCT,
+        )
 
-    def fit(self, n_chunks=1):
+    def fit(
+        self,
+        n_chunks: int = 1,
+        skip_calculate: bool = False,
+        n_jobs: int = None,
+        verbose: int = 0,
+    ):
         """
-        Compute MGWR inference by chunk to reduce memory footprint.
+        Compute MGTWR inference by chunk to reduce memory footprint.
+        Parameters
+        ----------
+        n_chunks       : int
+                        divided into n_chunks steps to reduce memory consumption
+        skip_calculate : bool
+                        if True, skip calculate CCT, ENP and other variables derived from it
+        n_jobs         : int
+                        The number of jobs to use for the computation. If None, then `self.thread` is used.
+        verbose        : int
+                        The verbosity level of joblib.Parallel. 0 means no output.
         """
-        self.n_chunks = n_chunks
         pre = np.sum(self.X * self.betas, axis=1).reshape(-1, 1)
-        result = map(self._chunk_compute, (range(n_chunks)))
-        result_list = list(zip(*result))
-        ENP_j = np.sum(np.array(result_list[0]), axis=0)
-        CCT = np.sum(np.array(result_list[1]), axis=0)
-        return MGWRResults(
-            self.coords, self.X, self.y, self.bws, self.kernel, self.fixed,
-            self.bws_history, self.betas, pre, ENP_j, CCT)
+        ENP_j = None
+        CCT = None
+        if not skip_calculate:
+            self.n_chunks = n_chunks
+            n_jobs = self.thread if n_jobs is None else n_jobs
+            result = Parallel(
+                n_jobs=n_jobs,
+                verbose=verbose,
+                pre_dispatch="all",
+                batch_size=self.n // self.thread,
+            )(delayed(self._chunk_compute)(i) for i in range(n_chunks))
+            result_list = list(zip(*result))
+            ENP_j = np.sum(np.array(result_list[0]), axis=0)
+            CCT = np.sum(np.array(result_list[1]), axis=0)
+        return MGTWRResults(
+            self.coords,
+            self.t,
+            self.X,
+            self.y,
+            self.bws,
+            self.taus,
+            self.kernel,
+            self.fixed,
+            self.bw_ts,
+            self.bws_history,
+            self.taus_history,
+            self.betas,
+            pre,
+            ENP_j,
+            CCT,
+        )
 
 
 class GTWR(BaseModel):
@@ -373,8 +471,8 @@ class GTWR(BaseModel):
                     'exponential'
 
     fixed         : bool
-                    True for distance based kernel function and  False for
-                    adaptive (nearest neighbor) kernel function (default)
+                    True for distance based kernel function (default) and
+                    False for adaptive (nearest neighbor) kernel function
 
     constant      : bool
                     True to include intercept (default) in model and False to exclude
@@ -403,22 +501,22 @@ class GTWR(BaseModel):
     """
 
     def __init__(
-            self,
-            coords: Union[np.ndarray, pd.DataFrame],
-            t: Union[np.ndarray, pd.DataFrame],
-            X: Union[np.ndarray, pd.DataFrame],
-            y: Union[np.ndarray, pd.DataFrame],
-            bw: float,
-            tau: float,
-            kernel: str = 'gaussian',
-            fixed: bool = False,
-            constant: bool = True,
-            thread: int = 1,
-            convert: bool = False
+        self,
+        coords: Union[np.ndarray, pd.DataFrame],
+        t: Union[np.ndarray, pd.DataFrame],
+        X: Union[np.ndarray, pd.DataFrame],
+        y: Union[np.ndarray, pd.DataFrame],
+        bw: float,
+        tau: float,
+        kernel: str = "gaussian",
+        fixed: bool = False,
+        constant: bool = True,
+        thread: int = 1,
+        convert: bool = False,
     ):
         super(GTWR, self).__init__(X, y, kernel, fixed, constant)
         if thread < 1 or not isinstance(thread, int):
-            raise ValueError('thread should be an integer greater than or equal to 1')
+            raise ValueError("thread should be an integer greater than or equal to 1")
         if isinstance(coords, pd.DataFrame):
             coords = coords.values
         self.coords = coords
@@ -431,7 +529,7 @@ class GTWR(BaseModel):
         self.bw = bw
         self.tau = tau
         self.bw_s = self.bw
-        self.bw_t = np.sqrt(self.bw ** 2 / self.tau)
+        self.bw_t = np.sqrt(self.bw**2 / self.tau)
         self.thread = thread
 
     def _build_wi(self, i, bw, tau):
@@ -439,7 +537,9 @@ class GTWR(BaseModel):
         calculate Weight matrix
         """
         try:
-            gtwr_kernel = GTWRKernel(self.coords, self.t, bw, tau, fixed=self.fixed, function=self.kernel)
+            gtwr_kernel = GTWRKernel(
+                self.coords, self.t, bw, tau, fixed=self.fixed, function=self.kernel
+            )
             distance = gtwr_kernel.cal_distance(i)
             wi = gtwr_kernel.cal_kernel(distance)
         except BaseException:
@@ -448,12 +548,19 @@ class GTWR(BaseModel):
         return wi
 
     def cal_aic(self):
-
         """
         use for calculating AICc, BIC, CV and so on.
         """
         if self.thread > 1:
-            result = list(zip(*Parallel(n_jobs=self.thread,verbose=10)(delayed(self._search_local_fit)(i) for i in range(self.n))))
+            result = list(
+                zip(
+                    *Parallel(
+                        n_jobs=self.thread,
+                        pre_dispatch="all",
+                        batch_size=self.n // self.thread,
+                    )(delayed(self._search_local_fit)(i) for i in range(self.n))
+                )
+            )
         else:
             result = list(zip(*map(self._search_local_fit, range(self.n))))
         err2 = np.array(result[0]).reshape(-1, 1)
@@ -481,7 +588,7 @@ class GTWR(BaseModel):
         influ = np.dot(self.X[i], xtx_inv_xt[:, i])
         Si = np.dot(self.X[i], xtx_inv_xt).reshape(-1)
         CCT = np.diag(np.dot(xtx_inv_xt, xtx_inv_xt.T)).reshape(-1)
-        Si2 = np.sum(Si ** 2)
+        Si2 = np.sum(Si**2)
         return influ, reside, predict, betas.reshape(-1), CCT, Si2
 
     def _multi_fit(self, i):
@@ -496,7 +603,15 @@ class GTWR(BaseModel):
         calculate betas, predict value and reside, use for searching best bandwidth in MGWR model by backfitting.
         """
         if self.thread > 1:
-            result = list(zip(*Parallel(n_jobs=self.thread)(delayed(self._multi_fit)(i) for i in range(self.n))))
+            result = list(
+                zip(
+                    *Parallel(
+                        n_jobs=self.thread,
+                        pre_dispatch="all",
+                        batch_size=self.n // self.thread,
+                    )(delayed(self._multi_fit)(i) for i in range(self.n))
+                )
+            )
         else:
             result = list(zip(*map(self._multi_fit, range(self.n))))
         betas = np.array(result[0])
@@ -510,9 +625,17 @@ class GTWR(BaseModel):
 
         """
         if self.thread > 1:
-            result = list(zip(*Parallel(n_jobs=self.thread)(delayed(self._local_fit)(i) for i in range(self.n))))
+            result = list(
+                zip(
+                    *Parallel(
+                        n_jobs=self.thread,
+                        pre_dispatch="all",
+                        batch_size=self.n // self.thread,
+                    )(delayed(self._local_fit)(i) for i in range(self.n))
+                )
+            )
         else:
-                result = list(zip(*map(self._local_fit, range(self.n))))
+            result = list(zip(*map(self._local_fit, range(self.n))))
         influ = np.array(result[0]).reshape(-1, 1)
         reside = np.array(result[1]).reshape(-1, 1)
         predict_value = np.array(result[2]).reshape(-1, 1)
@@ -520,8 +643,20 @@ class GTWR(BaseModel):
         CCT = np.array(result[4])
         tr_STS = np.array(result[5])
         return GTWRResults(
-            self.coords, self.t, self.X, self.y, self.bw, self.tau, self.kernel, self.fixed,
-            influ, reside, predict_value, betas, CCT, tr_STS
+            self.coords,
+            self.t,
+            self.X,
+            self.y,
+            self.bw,
+            self.tau,
+            self.kernel,
+            self.fixed,
+            influ,
+            reside,
+            predict_value,
+            betas,
+            CCT,
+            tr_STS,
         )
 
 
@@ -558,8 +693,8 @@ class MGTWR(GTWR):
                     'exponential'
 
     fixed         : bool
-                    True for distance based kernel function and  False for
-                    adaptive (nearest neighbor) kernel function (default)
+                    True for distance based kernel function (default) and  False for
+                    adaptive (nearest neighbor) kernel function
 
     constant      : bool
                     True to include intercept (default) in model and False to exclude
@@ -590,29 +725,40 @@ class MGTWR(GTWR):
     """
 
     def __init__(
-            self,
-            coords: np.ndarray,
-            t: np.ndarray,
-            X: np.ndarray,
-            y: np.ndarray,
-            selector,
-            kernel: str = 'bisquare',
-            fixed: bool = False,
-            constant: bool = True,
-            thread: int = 1,
-            convert: bool = False
+        self,
+        coords: np.ndarray,
+        t: np.ndarray,
+        X: np.ndarray,
+        y: np.ndarray,
+        selector,
+        kernel: str = "bisquare",
+        fixed: bool = False,
+        constant: bool = True,
+        thread: int = 1,
+        convert: bool = False,
     ):
         self.selector = selector
         self.bws = self.selector.bws[0]  # final set of bandwidth
         self.taus = self.selector.bws[1]
-        self.bw_ts = np.sqrt(self.bws ** 2 / self.taus)
+        self.bw_ts = np.sqrt(self.bws**2 / self.taus)
         self.bws_history = selector.bws[2]  # bws history in back_fitting
         self.taus_history = selector.bws[3]
         self.betas = selector.bws[5]
         bw_init = self.selector.bws[7]  # initialization bandwidth
         tau_init = self.selector.bws[8]
-        super().__init__(coords, t, X, y, bw_init, tau_init,
-                         kernel=kernel, fixed=fixed, constant=constant, thread=thread, convert=convert)
+        super().__init__(
+            coords,
+            t,
+            X,
+            y,
+            bw_init,
+            tau_init,
+            kernel=kernel,
+            fixed=fixed,
+            constant=constant,
+            thread=thread,
+            convert=convert,
+        )
         self.n_chunks = None
         self.ENP_j = None
 
@@ -624,11 +770,10 @@ class MGTWR(GTWR):
         ENP_j = np.zeros(self.k)
         CCT = np.zeros((self.n, self.k))
 
-        chunk_index = np.arange(n)[chunk_id * chunk_size:(chunk_id + 1) * chunk_size]
+        chunk_index = np.arange(n)[chunk_id * chunk_size : (chunk_id + 1) * chunk_size]
         init_pR = np.zeros((n, len(chunk_index)))
         init_pR[chunk_index, :] = np.eye(len(chunk_index))
-        pR = np.zeros((n, len(chunk_index),
-                       k))  # partial R: n by chunk_size by k
+        pR = np.zeros((n, len(chunk_index), k))  # partial R: n by chunk_size by k
 
         for i in range(n):
             wi = self._build_wi(i, self.bw, self.tau).reshape(-1, 1)
@@ -645,36 +790,81 @@ class MGTWR(GTWR):
                 n_chunks_Aj = n_chunks
                 chunk_size_Aj = int(np.ceil(float(n / n_chunks_Aj)))
                 for chunk_Aj in range(n_chunks_Aj):
-                    chunk_index_Aj = np.arange(n)[chunk_Aj * chunk_size_Aj:(
-                                                                                   chunk_Aj + 1) * chunk_size_Aj]
+                    chunk_index_Aj = np.arange(n)[
+                        chunk_Aj * chunk_size_Aj : (chunk_Aj + 1) * chunk_size_Aj
+                    ]
                     pAj = np.empty((len(chunk_index_Aj), n))
                     for i in range(len(chunk_index_Aj)):
                         index = chunk_index_Aj[i]
-                        wi = self._build_wi(index, self.bws_history[iter_i, j],
-                                            self.taus_history[iter_i, j])
+                        wi = self._build_wi(
+                            index,
+                            self.bws_history[iter_i, j],
+                            self.taus_history[iter_i, j],
+                        )
                         xw = Xj * wi
                         pAj[i, :] = Xj[index] / np.sum(xw * Xj) * xw
                     pR[chunk_index_Aj, :, j] = pAj.dot(pRj_old)
                 err = pRj_old - pR[:, :, j]
 
         for j in range(k):
-            CCT[:, j] += ((pR[:, :, j] / self.X[:, j].reshape(-1, 1)) ** 2).sum(
-                axis=1)
+            CCT[:, j] += ((pR[:, :, j] / self.X[:, j].reshape(-1, 1)) ** 2).sum(axis=1)
         for i in range(len(chunk_index)):
             ENP_j += pR[chunk_index[i], i, :]
 
-        return ENP_j, CCT,
+        return (
+            ENP_j,
+            CCT,
+        )
 
-    def fit(self, n_chunks=1):
+    def fit(
+        self,
+        n_chunks: int = 1,
+        skip_calculate: bool = False,
+        n_jobs: int = None,
+        verbose: int = 0,
+    ):
         """
         Compute MGTWR inference by chunk to reduce memory footprint.
+        Parameters
+        ----------
+        n_chunks       : int
+                        divided into n_chunks steps to reduce memory consumption
+        skip_calculate : bool
+                        if True, skip calculate CCT, ENP and other variables derived from it
+        n_jobs         : int
+                        The number of jobs to use for the computation. If None, then `self.thread` is used.
+        verbose        : int
+                        The verbosity level of joblib.Parallel. 0 means no output.
         """
-        self.n_chunks = n_chunks
         pre = np.sum(self.X * self.betas, axis=1).reshape(-1, 1)
-        result = map(self._chunk_compute, (range(n_chunks)))
-        result_list = list(zip(*result))
-        ENP_j = np.sum(np.array(result_list[0]), axis=0)
-        CCT = np.sum(np.array(result_list[1]), axis=0)
+        ENP_j = None
+        CCT = None
+        if not skip_calculate:
+            self.n_chunks = n_chunks
+            n_jobs = self.thread if n_jobs is None else n_jobs
+            result = Parallel(
+                n_jobs=n_jobs,
+                verbose=verbose,
+                pre_dispatch="all",
+                batch_size=self.n // self.thread,
+            )(delayed(self._chunk_compute)(i) for i in range(n_chunks))
+            result_list = list(zip(*result))
+            ENP_j = np.sum(np.array(result_list[0]), axis=0)
+            CCT = np.sum(np.array(result_list[1]), axis=0)
         return MGTWRResults(
-            self.coords, self.t, self.X, self.y, self.bws, self.taus, self.kernel, self.fixed, self.bw_ts,
-            self.bws_history, self.taus_history, self.betas, pre, ENP_j, CCT)
+            self.coords,
+            self.t,
+            self.X,
+            self.y,
+            self.bws,
+            self.taus,
+            self.kernel,
+            self.fixed,
+            self.bw_ts,
+            self.bws_history,
+            self.taus_history,
+            self.betas,
+            pre,
+            ENP_j,
+            CCT,
+        )
