@@ -24,18 +24,19 @@ class BaseModel:
     """
     Is the parent class of most models
     """
+
     def __init__(
-            self,
-            X: Union[np.ndarray, pd.DataFrame, pd.Series],
-            y: Union[np.ndarray, pd.DataFrame, pd.Series],
-            kernel: str,
-            fixed: bool,
-            constant: bool,
+        self,
+        X: Union[np.ndarray, pd.DataFrame, pd.Series],
+        y: Union[np.ndarray, pd.DataFrame, pd.Series],
+        kernel: str,
+        fixed: bool,
+        constant: bool,
     ):
         self.X = X.values if isinstance(X, (pd.DataFrame, pd.Series)) else X
         self.y = y.values if isinstance(y, (pd.DataFrame, pd.Series)) else y
         if len(y.shape) > 1 and y.shape[1] != 1:
-            raise ValueError('Label should be one-dimensional arrays')
+            raise ValueError("Label should be one-dimensional arrays")
         if len(y.shape) == 1:
             self.y = self.y.reshape(-1, 1)
         self.kernel = kernel
@@ -44,10 +45,14 @@ class BaseModel:
         self.n = X.shape[0]
         if self.constant:
             if len(self.X.shape) == 1 and np.all(self.X == 1):
-                raise ValueError("You've already passed in a constant sequence, use constant=False instead")
+                raise ValueError(
+                    "You've already passed in a constant sequence, use constant=False instead"
+                )
             for j in range(self.X.shape[1]):
                 if np.all(self.X[:, j] == 1):
-                    raise ValueError("You've already passed in a constant sequence, use constant=False instead")
+                    raise ValueError(
+                        "You've already passed in a constant sequence, use constant=False instead"
+                    )
             self.X = np.hstack([np.ones((self.n, 1)), X])
         self.k = self.X.shape[1]
 
@@ -58,16 +63,16 @@ class Results(BaseModel):
     """
 
     def __init__(
-            self,
-            X: Union[np.ndarray, pd.DataFrame],
-            y: Union[np.ndarray, pd.Series],
-            kernel: str,
-            fixed: bool,
-            influ: np.ndarray,
-            reside,
-            predict_value: np.ndarray,
-            betas: np.ndarray,
-            tr_STS: float
+        self,
+        X: Union[np.ndarray, pd.DataFrame],
+        y: Union[np.ndarray, pd.Series],
+        kernel: str,
+        fixed: bool,
+        influ: np.ndarray,
+        reside,
+        predict_value: np.ndarray,
+        betas: np.ndarray,
+        tr_STS: float,
     ):
         super(Results, self).__init__(X, y, kernel, fixed, constant=False)
         self.influ = influ
@@ -78,24 +83,41 @@ class Results(BaseModel):
         self.ENP = self.tr_S
         self.tr_STS = tr_STS
         self.TSS = np.sum((y - np.mean(y)) ** 2)
-        self.RSS = np.sum(reside ** 2)
+        self.RSS = np.sum(reside**2)
         self.sigma2 = self.RSS / (self.n - self.tr_S)
         self.std_res = self.reside / (np.sqrt(self.sigma2 * (1.0 - self.influ)))
-        self.cooksD = self.std_res ** 2 * self.influ / (self.tr_S * (1.0 - self.influ))
+        self.cooksD = self.std_res**2 * self.influ / (self.tr_S * (1.0 - self.influ))
         self.df_model = self.n - self.tr_S
         self.df_reside = self.n - 2.0 * self.tr_S + self.tr_STS
         self.R2 = 1 - self.RSS / self.TSS
         self.adj_R2 = 1 - (1 - self.R2) * (self.n - 1) / (self.n - self.ENP - 1)
-        self.llf = -np.log(self.RSS) * self.n / 2 - (1 + np.log(np.pi / self.n * 2)) * self.n / 2
+        self.llf = (
+            -np.log(self.RSS) * self.n / 2
+            - (1 + np.log(np.pi / self.n * 2)) * self.n / 2
+        )
         self.aic = -2.0 * self.llf + 2.0 * (self.tr_S + 1)
-        self.aicc = self.aic + 2.0 * self.tr_S * (self.tr_S + 1.0) / (self.n - self.tr_S - 1.0)
+        self.aicc = self.aic + 2.0 * self.tr_S * (self.tr_S + 1.0) / (
+            self.n - self.tr_S - 1.0
+        )
         self.bic = -2.0 * self.llf + (self.k + 1) * np.log(self.n)
 
 
 class GWRResults(Results):
 
     def __init__(
-            self, coords, X, y, bw, kernel, fixed, influ, reside, predict_value, betas, CCT, tr_STS
+        self,
+        coords,
+        X,
+        y,
+        bw,
+        kernel,
+        fixed,
+        influ,
+        reside,
+        predict_value,
+        betas,
+        CCT,
+        tr_STS,
     ):
         """
         betas               : array
@@ -175,7 +197,8 @@ class GWRResults(Results):
         """
 
         super(GWRResults, self).__init__(
-            X, y, kernel, fixed, influ, reside, predict_value, betas, tr_STS)
+            X, y, kernel, fixed, influ, reside, predict_value, betas, tr_STS
+        )
         self.coords = coords
         self.bw = bw
         self.CCT = CCT * self.sigma2
@@ -186,7 +209,21 @@ class GWRResults(Results):
 class GTWRResults(Results):
 
     def __init__(
-            self, coords, t, X, y, bw, tau, kernel, fixed, influ, reside, predict_value, betas, CCT, tr_STS
+        self,
+        coords,
+        t,
+        X,
+        y,
+        bw,
+        tau,
+        kernel,
+        fixed,
+        influ,
+        reside,
+        predict_value,
+        betas,
+        CCT,
+        tr_STS,
     ):
         """
         tau:        : scalar
@@ -198,13 +235,15 @@ class GTWRResults(Results):
         See Also GWRResults
         """
 
-        super(GTWRResults, self).__init__(X, y, kernel, fixed, influ, reside, predict_value, betas, tr_STS)
+        super(GTWRResults, self).__init__(
+            X, y, kernel, fixed, influ, reside, predict_value, betas, tr_STS
+        )
         self.coords = coords
         self.t = t
         self.bw = bw
         self.tau = tau
         self.bw_s = self.bw
-        self.bw_t = np.sqrt(self.bw ** 2 / self.tau)
+        self.bw_t = np.sqrt(self.bw**2 / self.tau)
         self.CCT = CCT * self.sigma2
         self.bse = np.sqrt(self.CCT)
         self.tvalues = self.betas / self.bse
@@ -212,8 +251,20 @@ class GTWRResults(Results):
 
 class MGWRResults(BaseModel):
 
-    def __init__(self, coords, X, y, bws, kernel, fixed, bws_history, betas,
-                 predict_value, ENP_j, CCT):
+    def __init__(
+        self,
+        coords,
+        X,
+        y,
+        bws,
+        kernel,
+        fixed,
+        bws_history,
+        betas,
+        predict_value,
+        ENP_j,
+        CCT,
+    ):
         """
         bws         : array-like
                       corresponding spatial bandwidth of all variables
@@ -229,33 +280,51 @@ class MGWRResults(BaseModel):
         self.bws_history = bws_history
         self.predict_value = predict_value
         self.betas = betas
-        self.ENP_j = ENP_j 
-        if ENP_j is None:
-                print("跳过了ENP_j的计算")
         self.reside = self.y - self.predict_value
-        self.tr_S = np.sum(self.ENP_j) if ENP_j is not None else print("跳过了tr_S的计算,因为ENP_j跳过") and None
-        self.ENP = self.tr_S if ENP_j is not None else print("跳过了ENP的计算,因为tr_S,ENP_j跳过") and None
         self.TSS = np.sum((self.y - np.mean(self.y)) ** 2)
-        self.RSS = np.sum(self.reside ** 2)
-        self.sigma2 = self.RSS / (self.n - self.tr_S) if ENP_j is not None else print("跳过了sigma2的计算,因为tr_S,ENP_j跳过") and None
-        self.CCT = CCT * self.sigma2 if CCT is not None else print("跳过了CCT的计算") and None
-        self.bse = np.sqrt(self.CCT) if CCT is not None else print("跳过了bse的计算,因为CCT跳过") and None
-        self.t_values = self.betas / self.bse if CCT is not None else print("跳过了t_values的计算,因为bse,CCT跳过") and None
-        self.df_model = self.n - self.tr_S if ENP_j is not None else print("跳过了df_model的计算,因为tr_S跳过") and None
+        self.RSS = np.sum(self.reside**2)
         self.R2 = 1 - self.RSS / self.TSS
-        self.adj_R2 = 1 - (1 - self.R2) * (self.n - 1) / (self.n - self.ENP - 1) if ENP_j is not None else print("跳过了adj_R2的计算,因为ENP_j跳过") and None
-        self.llf = -np.log(self.RSS) * self.n / \
-                   2 - (1 + np.log(np.pi / self.n * 2)) * self.n / 2 if ENP_j is not None else print("跳过了llf的计算,因为ENP_j跳过") and None
-        self.aic = -2.0 * self.llf + 2.0 * (self.tr_S + 1) if ENP_j is not None else print("跳过了aic的计算,因为ENP_j跳过") and None
-        self.aic_c = self.aic + 2.0 * self.tr_S * (self.tr_S + 1.0) / \
-                     (self.n - self.tr_S - 1.0) if ENP_j is not None else print("跳过了aic_c的计算,因为ENP_j跳过") and None
-        self.bic = -2.0 * self.llf + (self.k + 1) * np.log(self.n) if ENP_j is not None else print("跳过了bic的计算,因为ENP_j跳过") and None
+        self.llf = (
+            -np.log(self.RSS) * self.n / 2
+            - (1 + np.log(np.pi / self.n * 2)) * self.n / 2
+        )
+        self.bic = -2.0 * self.llf + (self.k + 1) * np.log(self.n)
+        if ENP_j is not None:
+            self.ENP_j = ENP_j
+            self.tr_S = np.sum(self.ENP_j)
+            self.ENP = self.tr_S
+            self.sigma2 = self.RSS / (self.n - self.tr_S)
+            self.CCT = CCT * self.sigma2
+            self.bse = np.sqrt(self.CCT)
+            self.t_values = self.betas / self.bse
+            self.df_model = self.n - self.tr_S
+            self.adj_R2 = 1 - (1 - self.R2) * (self.n - 1) / (self.n - self.ENP - 1)
+            self.aic = -2.0 * self.llf + 2.0 * (self.tr_S + 1)
+            self.aic_c = self.aic + 2.0 * self.tr_S * (self.tr_S + 1.0) / (
+                self.n - self.tr_S - 1.0
+            )
 
 
 class MGTWRResults(MGWRResults):
 
-    def __init__(self, coords, t, X, y, bws, taus, kernel, fixed, bw_ts, bws_history, taus_history, betas,
-                 predict_value, ENP_j, CCT):
+    def __init__(
+        self,
+        coords,
+        t,
+        X,
+        y,
+        bws,
+        taus,
+        kernel,
+        fixed,
+        bw_ts,
+        bws_history,
+        taus_history,
+        betas,
+        predict_value,
+        ENP_j,
+        CCT,
+    ):
         """
         taus        : array-like
                      corresponding spatio-temporal scale of all variables
@@ -269,7 +338,18 @@ class MGTWRResults(MGWRResults):
         GWRResults
         """
         super(MGTWRResults, self).__init__(
-            coords, X, y, bws, kernel, fixed, bws_history, betas, predict_value, ENP_j, CCT)
+            coords,
+            X,
+            y,
+            bws,
+            kernel,
+            fixed,
+            bws_history,
+            betas,
+            predict_value,
+            ENP_j,
+            CCT,
+        )
         self.t = t
         self.taus = taus
         self.bw_ts = bw_ts
