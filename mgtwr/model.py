@@ -14,6 +14,8 @@ from .obj import (
     MGTWRResults,
 )
 from joblib import Parallel, delayed
+import dask
+from dask.distributed import Client
 
 
 class GWR(BaseModel):
@@ -127,15 +129,12 @@ class GWR(BaseModel):
         use for calculating AICc, BIC, CV and so on.
         """
         if self.thread > 1:
-            result = list(
-                zip(
-                    *Parallel(
-                        n_jobs=self.thread,
-                        pre_dispatch="all",
-                        batch_size=self.n // self.thread,
-                    )(delayed(self._search_local_fit)(i) for i in range(self.n))
-                )
-            )
+            client = Client("tcp://192.168.1.108:8786")
+            tasks = [dask.delayed(self._search_local_fit)(i) for i in range(self.n)]
+            futures = client.compute(tasks)
+            result = client.gather(futures)
+            result = list(zip(*result))
+            client.close()
         else:
             result = list(zip(*map(self._search_local_fit, range(self.n))))
         err2 = np.array(result[0]).reshape(-1, 1)
@@ -178,15 +177,12 @@ class GWR(BaseModel):
         calculate betas, predict value and reside, use for searching best bandwidth in MGWR model by backfitting.
         """
         if self.thread > 1:
-            result = list(
-                zip(
-                    *Parallel(
-                        n_jobs=self.thread,
-                        pre_dispatch="all",
-                        batch_size=self.n // self.thread,
-                    )(delayed(self._multi_fit)(i) for i in range(self.n))
-                )
-            )
+            client = Client("tcp://192.168.1.108:8786")
+            tasks = [dask.delayed(self._multi_fit)(i) for i in range(self.n)]
+            futures = client.compute(tasks)
+            result = client.gather(futures)
+            result = list(zip(*result))
+            client.close()
         else:
             result = list(zip(*map(self._multi_fit, range(self.n))))
         betas = np.array(result[0])
@@ -199,15 +195,12 @@ class GWR(BaseModel):
         To fit GWR model
         """
         if self.thread > 1:
-            result = list(
-                zip(
-                    *Parallel(
-                        n_jobs=self.thread,
-                        pre_dispatch="all",
-                        batch_size=self.n // self.thread,
-                    )(delayed(self._local_fit)(i) for i in range(self.n))
-                )
-            )
+            client = Client("tcp://192.168.1.108:8786")
+            tasks = [dask.delayed(self._local_fit)(i) for i in range(self.n)]
+            futures = client.compute(tasks)
+            result = client.gather(futures)
+            result = list(zip(*result))
+            client.close()
         else:
             result = list(zip(*map(self._local_fit, range(self.n))))
         influ = np.array(result[0]).reshape(-1, 1)
@@ -407,13 +400,10 @@ class MGWR(GWR):
         CCT = None
         if not skip_calculate:
             self.n_chunks = n_chunks
-            n_jobs = self.thread if n_jobs is None else n_jobs
-            result = Parallel(
-                n_jobs=n_jobs,
-                verbose=verbose,
-                pre_dispatch="all",
-                batch_size=self.n // self.thread,
-            )(delayed(self._chunk_compute)(i) for i in range(n_chunks))
+            client = Client("tcp://192.168.1.108:8786")
+            tasks = [dask.delayed(self._chunk_compute)(i) for i in range(n_chunks)]
+            result = client.compute(tasks, sync=True)
+            client.close()
             result_list = list(zip(*result))
             ENP_j = np.sum(np.array(result_list[0]), axis=0)
             CCT = np.sum(np.array(result_list[1]), axis=0)
@@ -552,15 +542,12 @@ class GTWR(BaseModel):
         use for calculating AICc, BIC, CV and so on.
         """
         if self.thread > 1:
-            result = list(
-                zip(
-                    *Parallel(
-                        n_jobs=self.thread,
-                        pre_dispatch="all",
-                        batch_size=self.n // self.thread,
-                    )(delayed(self._search_local_fit)(i) for i in range(self.n))
-                )
-            )
+            client = Client("tcp://192.168.1.108:8786")
+            tasks = [dask.delayed(self._search_local_fit)(i) for i in range(self.n)]
+            futures = client.compute(tasks)
+            result = client.gather(futures)
+            result = list(zip(*result))
+            client.close()
         else:
             result = list(zip(*map(self._search_local_fit, range(self.n))))
         err2 = np.array(result[0]).reshape(-1, 1)
@@ -603,15 +590,12 @@ class GTWR(BaseModel):
         calculate betas, predict value and reside, use for searching best bandwidth in MGWR model by backfitting.
         """
         if self.thread > 1:
-            result = list(
-                zip(
-                    *Parallel(
-                        n_jobs=self.thread,
-                        pre_dispatch="all",
-                        batch_size=self.n // self.thread,
-                    )(delayed(self._multi_fit)(i) for i in range(self.n))
-                )
-            )
+            client = Client("tcp://192.168.1.108:8786")
+            tasks = [dask.delayed(self._multi_fit)(i) for i in range(self.n)]
+            futures = client.compute(tasks)
+            result = client.gather(futures)
+            result = list(zip(*result))
+            client.close()
         else:
             result = list(zip(*map(self._multi_fit, range(self.n))))
         betas = np.array(result[0])
@@ -625,15 +609,12 @@ class GTWR(BaseModel):
 
         """
         if self.thread > 1:
-            result = list(
-                zip(
-                    *Parallel(
-                        n_jobs=self.thread,
-                        pre_dispatch="all",
-                        batch_size=self.n // self.thread,
-                    )(delayed(self._local_fit)(i) for i in range(self.n))
-                )
-            )
+            client = Client("tcp://192.168.1.108:8786")
+            tasks = [dask.delayed(self._local_fit)(i) for i in range(self.n)]
+            futures = client.compute(tasks)
+            result = client.gather(futures)
+            result = list(zip(*result))
+            client.close()
         else:
             result = list(zip(*map(self._local_fit, range(self.n))))
         influ = np.array(result[0]).reshape(-1, 1)
@@ -820,7 +801,7 @@ class MGTWR(GTWR):
         self,
         n_chunks: int = 1,
         skip_calculate: bool = False,
-        n_jobs: int = None,
+        # n_jobs: int = None,
         verbose: int = 0,
     ):
         """
@@ -841,13 +822,12 @@ class MGTWR(GTWR):
         CCT = None
         if not skip_calculate:
             self.n_chunks = n_chunks
-            n_jobs = self.thread if n_jobs is None else n_jobs
-            result = Parallel(
-                n_jobs=n_jobs,
-                verbose=verbose,
-                pre_dispatch="all",
-                batch_size=self.n // self.thread,
-            )(delayed(self._chunk_compute)(i) for i in range(n_chunks))
+            # n_jobs = self.thread if n_jobs is None else n_jobs
+            # 创建一个 Dask 客户端，连接到你的 Dask 集群
+            client = Client("tcp://192.168.1.108:8786")
+            tasks = [dask.delayed(self._chunk_compute)(i) for i in range(n_chunks)]
+            result = client.compute(tasks, sync=True)
+            client.close()
             result_list = list(zip(*result))
             ENP_j = np.sum(np.array(result_list[0]), axis=0)
             CCT = np.sum(np.array(result_list[1]), axis=0)
